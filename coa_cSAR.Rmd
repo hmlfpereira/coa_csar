@@ -5,9 +5,35 @@ output: html_notebook
 
 # Initializations
 
+Packages
+
 ```{r}
-install.packages("pak")
+#install.packages("pak")
 pak::pak("lillyschwietzer/csarGeo-Package")
+library("csarGeo")
+#install.packages("remotes")
+#remotes::install_github("lillyschwietzer/csarGeo-Package")
+```
+
+Data
+
+```{r}
+
 ```
 
 # Calibrating the projections
+
+```{r}
+res <- countryside_sar(
+  data = mydata,
+  crs = 3763,
+  method = "circles",
+  radius = 2000 * 1:10,
+  habitat = myraster,
+  habitat_names = c("Forest", "Agriculture", "Shrubland"),
+  habitat_codes = 1:3,
+  classification = myclassif,
+  groups = "Forest",
+  seed = 123
+)
+```
