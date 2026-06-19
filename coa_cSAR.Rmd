@@ -3,9 +3,11 @@ title: "cSAR projections for COA"
 output: html_notebook
 ---
 
+# Initializations
 
 ```{r}
-plot(cars)
+install.packages("pak")
+pak::pak("lillyschwietzer/csarGeo-Package")
 ```
 
-
+# Calibrating the projections
