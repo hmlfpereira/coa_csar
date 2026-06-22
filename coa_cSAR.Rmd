@@ -9,8 +9,10 @@ Packages
 
 ```{r}
 #install.packages("pak")
-pak::pak("lillyschwietzer/csarGeo-Package")
+#pak::pak("lillyschwietzer/csarGeo-Package")
 library("csarGeo")
+library(terra)
+library(readxl)
 #install.packages("remotes")
 #remotes::install_github("lillyschwietzer/csarGeo-Package")
 ```
@@ -18,22 +20,29 @@ library("csarGeo")
 Data
 
 ```{r}
-
+lu1995 <- rast("data/coa95_raster_20.tif")
+data=read_excel("data/coa_pa99_centroides.xlsx")
+classif<-read_excel("data/coa_aves_classification.xlsx")
 ```
 
 # Calibrating the projections
 
 ```{r}
 res <- countryside_sar(
-  data = mydata,
+  data = data,
   crs = 3763,
   method = "circles",
   radius = 2000 * 1:10,
-  habitat = myraster,
+  habitat = lu1995,
   habitat_names = c("Forest", "Agriculture", "Shrubland"),
-  habitat_codes = 1:3,
-  classification = myclassif,
+  classification = classif,
   groups = "Forest",
   seed = 123
 )
+```
+
+# Visualization
+
+```{r}
+visuals_sar(res, plot_type = "map")
 ```
