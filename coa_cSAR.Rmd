@@ -30,7 +30,8 @@ lu2018 <- rast("data/coa18_raster_20.tif")
 data_1=read_excel("data/coa_pa99_centroides.xlsx")
 data_2=read_excel("data/coa_pa23_centroides.xlsx")
 
-classif<-read_excel("data/coa_aves_classification_v2.xlsx")
+classif_1<-read_excel("data/coa_aves_classification_v2.xlsx")
+classif_2<- read_excel("data/coa_aves_classification.xlsx")
 ```
 
 # Calibrating the projections
@@ -44,7 +45,7 @@ res <- countryside_sar(
   cluster_sizes = c(1,4,16,64,256),
   habitat = lu2018,
   habitat_names = c("Forest", "Agriculture", "Shrubland"),
-  classification = classif
+  classification = classif_1
 )
 ```
 
