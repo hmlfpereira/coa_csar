@@ -14,7 +14,7 @@ library("csarGeo")
 library(terra)
 library(readxl)
 #install.packages("remotes")
-#remotes::install_github("lillyschwietzer/csarGeo-Package")
+remotes::install_github("lillyschwietzer/csarGeo")
 ```
 
 Data
@@ -22,7 +22,7 @@ Data
 ```{r}
 lu1995 <- rast("data/coa95_raster_20.tif")
 data=read_excel("data/coa_pa99_centroides.xlsx")
-classif<-read_excel("data/coa_aves_classification.xlsx")
+classif<-read_excel("data/coa_aves_classification_v2.xlsx")
 ```
 
 # Calibrating the projections
@@ -31,13 +31,12 @@ classif<-read_excel("data/coa_aves_classification.xlsx")
 res <- countryside_sar(
   data = data,
   crs = 3763,
-  method = "circles",
-  radius = 2000 * 1:10,
+  method = "clusters",
+  square_size = 2000,
+  cluster_sizes = c(1,4,16,64,256),
   habitat = lu1995,
   habitat_names = c("Forest", "Agriculture", "Shrubland"),
-  classification = classif,
-  groups = "Forest",
-  seed = 123
+  classification = classif
 )
 ```
 
