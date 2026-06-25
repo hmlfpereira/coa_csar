@@ -22,6 +22,7 @@ library(readxl)
 library(dplyr)
 library(cowplot)
 library(ggplot2)
+library(writexl)
 ```
 
 Data
@@ -34,6 +35,10 @@ data_2=read_excel("data/coa_pa23_centroides.xlsx")
 
 classif<-read_excel("data/coa_aves_classification_v2.xlsx")
 classif_2<- read_excel("data/coa_aves_classification.xlsx")
+
+# classification PECBMS
+pec_class_t1<-read_excel("data/coa_aves_classification_pecbms_99_05.xlsx")
+pec_class_t2<-read_excel("data/coa_aves_classification_pecbms_23_24.xlsx")
 ```
 
 # seeing common species to both periods 
@@ -60,16 +65,20 @@ classif_only99 <- classif %>%
 
 classif_only23 <- classif_2 %>%
   filter(species %in% diff23)
+
+classif_2 <- classif_2 %>%
+  filter(species %in% c(common, diff23))
 ```
 
 ### select only speies present in 2023-24
 ```{r}
-classif_2 <- classif_2 %>%
-  filter(species %in% c(common, diff23))
 
 classif_2 <- classif_2 %>%
 rename(Grassland_Sp = Grassland, Forest_Sp = Forest, generalists_Sp = generalists)
 
+View(classif_2)
+View(data_2)
+lu2018
 ```
 
 # Calibrating the projections
@@ -91,13 +100,13 @@ res95 <- countryside_sar(
     crs = 3763,
   method = "clusters",
   square_size = 2000,
-  cluster_sizes = c(1, 4, 16, 64, 256),
+  cluster_sizes = 1,
   habitat = lu1995,
   habitat_names = c("Forest", "Agriculture", "Shrubland"),
-  classification = classif,
-  groups = c("Forest_Sp", "Grassland_Sp", "generalists_Sp")
+  classification = pec_class_t1,
+  groups = c("Forest_Sp", "Grassland_Sp", "Other_Sp")
 )
-model<-res95$csar_analysis$model$c
+
 
 
 
@@ -109,18 +118,22 @@ res18 <- countryside_sar(
   cluster_sizes = c(1, 4, 16, 64, 256),
   habitat = lu2018,
   habitat_names = c("Forest", "Agriculture", "Shrubland"),
-  classification = classif_2,
-  groups = c("Forest_Sp", "Grassland_Sp", "generalists_Sp")
+  classification = pec_class_t2,
+  groups = c("Forest_Sp", "Grassland_Sp", "Other_Sp")
 )
 ```
 
 # Visualization
 
 ```{r}
+
 visuals_sar(res95, plot_type = "csar")
- visuals_sar(res18, plot_type = "sar")
+ visuals_sar(res18, plot_type = "csar")
+ 
+ write_xlsx(res18$results_table, "C:/Users/vazpa/OneDrive/Documentos/COA_AntonioMonteiro/CountrsydeSAR/tabela_csar_2018.xlsx")
+write_xlsx(res95$results_table, "C:/Users/vazpa/OneDrive/Documentos/COA_AntonioMonteiro/CountrsydeSAR/tabela_csar_1995.xlsx")
 ```
-### model5 for parameters 1995
+### models for parameters 1995
 ```{r}
 
 #str(res95$csar_analysis$model)
@@ -178,6 +191,68 @@ predict_csar95 <- function(Forest,
   )
 }
 ```
+
+
+
+### models for parameters 2023
+```{r}
+
+#str(res95$csar_analysis$model)
+
+# create objects for z, c and affinity coeffiecients
+
+aff_for_for18<-res18$csar_analysis$model$affinity$Forest_Sp[1]
+aff_for_agr18<-res18$csar_analysis$model$affinity$Forest_Sp[2]
+aff_for_shr<-res18$csar_analysis$model$affinity$Forest_Sp[3]
+
+aff_agr_agr18<-res18$csar_analysis$model$affinity$Grassland_Sp[2]
+aff_agr_for18<-res18$csar_analysis$model$affinity$Grassland_Sp[1]
+aff_agr_shr18<-res18$csar_analysis$model$affinity$Grassland_Sp[3]
+
+aff_gen_shr18<-res18$csar_analysis$model$affinity$generalists_Sp[3]
+aff_gen_agr18<-res18$csar_analysis$model$affinity$generalists_Sp[2]
+aff_gen_for18<-res18$csar_analysis$model$affinity$generalists_Sp[1]
+
+c_for18<-res18$csar_analysis$model$c[1]
+c_agr18<-res18$csar_analysis$model$c[2]
+c_gen18<-res18$csar_analysis$model$c[3]
+
+z_for18<-coef(res18$csar_analysis$model$fits$Forest_Sp)["z"]
+z_agr18<-coef(res18$csar_analysis$model$fits$Grassland_Sp)["z"]
+z_gen18<-coef(res18$csar_analysis$model$fits$generalists_Sp)["z"]
+
+#create function to compute models with parameters - 1995
+
+predict_csar18 <- function(Forest,
+                           Agriculture,
+                           Shrubland){
+
+  Forest_sp <-
+    c_for18 *
+    (aff_for_for18*Forest +
+       aff_for_agr18*Agriculture +
+      aff_for_shr18*Shrubland)^z_for18
+
+  Grassland_sp <-
+    c_agr18 *
+    (aff_agr_for18*Forest +
+       aff_agr_agr18*Agriculture +
+       aff_agr_shr18*Shrubland)^z_agr18
+
+  Generalists_sp <-
+    c_gen18 *
+    (aff_gen_for18*Forest +
+       aff_gen_agr18*Agriculture +
+       aff_gen_shr18*Shrubland)^z_gen18
+
+  data.frame(
+    Forest_sp,
+    Grassland_sp,
+    Generalists_sp
+  )
+}
+```
+
 
 ```{r}
 meanF <- mean(res95$results_table$Forest)
@@ -290,5 +365,68 @@ sqrt(
       validation$predicted)^2
  )
 )
+```
+
+### add PECBMS to classifications 
+#### farmland, forest, others
+
+```{r}
+pec<-read_excel("C:/Users/vazpa/OneDrive/Documentos/COA_AntonioMonteiro/2nd_paper/pecbms_classification.xlsx")
+
+pec <- pec %>%
+  mutate(species = species |>
+           tolower() )
+
+habitat_pec <- pec %>%
+  dplyr::select(species, Mediterranean)
+
+classif99_pec <- classif %>%
+  inner_join(habitat_pec, by = "species")
+
+classif23_pec <- classif_2 %>%
+inner_join(habitat_pec, by = "species")
+
+trends <- trends %>%
+  relocate(Mediterranean, .after= 2)
+
+# corrections made by confronting Antonio
+
+classif99_pec <- classif99_pec %>%
+  mutate(
+    Mediterranean = case_when(
+      species %in% "actitis hypoleucos" ~ "other",
+      species %in% "anthus pratensis" ~ "farmland",
+      TRUE ~ Mediterranean
+    )
+  )
+
+classif23_pec <- classif23_pec %>%
+  mutate(
+    Mediterranean = case_when(
+      species %in% "actitis hypoleucos" ~ "other",
+      TRUE ~ Mediterranean
+    )
+  )
+
+
+classif99_pec <- classif99_pec %>%
+  mutate(
+    Forest_PEC = ifelse(Mediterranean == "forest", 1, 0),
+    Farmland_PEC = ifelse(Mediterranean == "farmland", 1, 0),
+    Other_PEC = ifelse(Mediterranean == "other", 1, 0),
+
+  )
+
+classif23_pec <- classif23_pec %>%
+  mutate(
+    Forest_PEC = ifelse(Mediterranean == "forest", 1, 0),
+    Farmland_PEC = ifelse(Mediterranean == "farmland", 1, 0),
+    Other_PEC = ifelse(Mediterranean == "other", 1, 0),
+
+  )
+
+write_xlsx(classif99_pec, "C:/Users/vazpa/OneDrive/Documentos/COA_AntonioMonteiro/CountrsydeSAR/coa_aves_classification_pecbms_99_05.xlsx")
+write_xlsx(classif23_pec, "C:/Users/vazpa/OneDrive/Documentos/COA_AntonioMonteiro/CountrsydeSAR/coa_aves_classification_pecbms_23_24.xlsx")
+
 ```
 
