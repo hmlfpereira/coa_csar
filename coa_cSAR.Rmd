@@ -9,9 +9,8 @@ Packages
 
 ```{r}
 #install.packages("remotes")
-remotes::install_github("lillyschwietzer/csarGeo")
+remotes::install_github("lillyschwietzer/csarGeo@fe67880bdf6598cec4f6a889669f1564d191f778")
 ```
-
 
 ```{r}
 #install.packages("pak")
@@ -41,7 +40,7 @@ pec_class_t1<-read_excel("data/coa_aves_classification_pecbms_99_05.xlsx")
 pec_class_t2<-read_excel("data/coa_aves_classification_pecbms_23_24.xlsx")
 ```
 
-# seeing common species to both periods 
+# seeing common species to both periods
 
 ```{r}
 spp_class <- classif$species
@@ -71,6 +70,7 @@ classif_2 <- classif_2 %>%
 ```
 
 ### select only speies present in 2023-24
+
 ```{r}
 
 classif_2 <- classif_2 %>%
@@ -84,16 +84,6 @@ lu2018
 # Calibrating the projections
 
 ```{r}
-res <- countryside_sar(
-  data = data_2,
-  crs = 3763,
-  method = "clusters",
-  square_size = 2000,
-  cluster_sizes = c(1,4,16,64,256),
-  habitat = lu2018,
-  habitat_names = c("Forest", "Agriculture", "Shrubland"),
-  classification = classif_2
-)
 
 res95 <- countryside_sar(
   data = data,
@@ -123,6 +113,26 @@ res18 <- countryside_sar(
 )
 ```
 
+# Projections for 2020 with model from 2000
+
+```{r}
+model2000 = res95
+str(res95)
+```
+
+```{r}
+
+tabela2020 = res18$results_table
+
+for (i in 1:nrows(tabela2020))
+{
+  out=countryside_extrap(res95$csar_analysis$model,c(tabela2020[i,floresta],tabela2020[i,agriculuta],0))
+  tabela2020[i,spflorproj_res95]=out$Indiv_mods$Forest
+}
+  
+countryside_extrap(res95$csar_analysis$model,c(2000,0,0))
+```
+
 # Visualization
 
 ```{r}
@@ -133,7 +143,9 @@ visuals_sar(res95, plot_type = "csar")
  write_xlsx(res18$results_table, "C:/Users/vazpa/OneDrive/Documentos/COA_AntonioMonteiro/CountrsydeSAR/tabela_csar_2018.xlsx")
 write_xlsx(res95$results_table, "C:/Users/vazpa/OneDrive/Documentos/COA_AntonioMonteiro/CountrsydeSAR/tabela_csar_1995.xlsx")
 ```
+
 ### models for parameters 1995
+
 ```{r}
 
 #str(res95$csar_analysis$model)
@@ -192,9 +204,8 @@ predict_csar95 <- function(Forest,
 }
 ```
 
-
-
 ### models for parameters 2023
+
 ```{r}
 
 #str(res95$csar_analysis$model)
@@ -252,7 +263,6 @@ predict_csar18 <- function(Forest,
   )
 }
 ```
-
 
 ```{r}
 meanF <- mean(res95$results_table$Forest)
@@ -342,6 +352,7 @@ ggplot(curve_data,
 
   theme_bw()
 ```
+
 ```{r}
 str(res95$csar_analysis$model)
 pred18_tetrads <-
@@ -367,7 +378,8 @@ sqrt(
 )
 ```
 
-### add PECBMS to classifications 
+### add PECBMS to classifications
+
 #### farmland, forest, others
 
 ```{r}
@@ -429,4 +441,3 @@ write_xlsx(classif99_pec, "C:/Users/vazpa/OneDrive/Documentos/COA_AntonioMonteir
 write_xlsx(classif23_pec, "C:/Users/vazpa/OneDrive/Documentos/COA_AntonioMonteiro/CountrsydeSAR/coa_aves_classification_pecbms_23_24.xlsx")
 
 ```
-
