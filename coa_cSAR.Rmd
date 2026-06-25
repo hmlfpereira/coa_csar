@@ -19,7 +19,9 @@ remotes::install_github("lillyschwietzer/csarGeo")
 library("csarGeo")
 library(terra)
 library(readxl)
-
+library(dplyr)
+library(cowplot)
+library(ggplot2)
 ```
 
 Data
@@ -27,11 +29,47 @@ Data
 ```{r}
 lu1995 <- rast("data/coa95_raster_20.tif")
 lu2018 <- rast("data/coa18_raster_20.tif")
-data_1=read_excel("data/coa_pa99_centroides.xlsx")
+data=read_excel("data/coa_pa99_centroides.xlsx")
 data_2=read_excel("data/coa_pa23_centroides.xlsx")
 
-classif_1<-read_excel("data/coa_aves_classification_v2.xlsx")
+classif<-read_excel("data/coa_aves_classification_v2.xlsx")
 classif_2<- read_excel("data/coa_aves_classification.xlsx")
+```
+
+# seeing common species to both periods 
+
+```{r}
+spp_class <- classif$species
+species_99 <- colnames(data)[4:ncol(data)]
+species_23 <- colnames(data_2)[4:ncol(data_2)]
+
+common <- intersect(species_99, species_23)
+# only in 99
+diff99 <- setdiff(species_99, species_23)
+# only in 23
+diff23 <- setdiff(species_23, species_99)
+
+#list(common = common, only1999 = diff99, only2023 = diff23)
+
+# common species in classif and pa99
+common_2 <- setdiff(species_99, spp_class)
+common_3 <- setdiff(species_23, spp_class)
+
+classif_only99 <- classif %>%
+  filter(species %in% diff99)
+
+classif_only23 <- classif_2 %>%
+  filter(species %in% diff23)
+```
+
+### select only speies present in 2023-24
+```{r}
+classif_2 <- classif_2 %>%
+  filter(species %in% c(common, diff23))
+
+classif_2 <- classif_2 %>%
+rename(Grassland_Sp = Grassland, Forest_Sp = Forest, generalists_Sp = generalists)
+
 ```
 
 # Calibrating the projections
@@ -45,12 +83,212 @@ res <- countryside_sar(
   cluster_sizes = c(1,4,16,64,256),
   habitat = lu2018,
   habitat_names = c("Forest", "Agriculture", "Shrubland"),
-  classification = classif_1
+  classification = classif_2
+)
+
+res95 <- countryside_sar(
+  data = data,
+    crs = 3763,
+  method = "clusters",
+  square_size = 2000,
+  cluster_sizes = c(1, 4, 16, 64, 256),
+  habitat = lu1995,
+  habitat_names = c("Forest", "Agriculture", "Shrubland"),
+  classification = classif,
+  groups = c("Forest_Sp", "Grassland_Sp", "generalists_Sp")
+)
+model<-res95$csar_analysis$model$c
+
+
+
+res18 <- countryside_sar(
+  data = data_2,
+    crs = 3763,
+  method = "clusters",
+  square_size = 2000,
+  cluster_sizes = c(1, 4, 16, 64, 256),
+  habitat = lu2018,
+  habitat_names = c("Forest", "Agriculture", "Shrubland"),
+  classification = classif_2,
+  groups = c("Forest_Sp", "Grassland_Sp", "generalists_Sp")
 )
 ```
 
 # Visualization
 
 ```{r}
-visuals_sar(res, plot_type = "sar")
+visuals_sar(res95, plot_type = "csar")
+ visuals_sar(res18, plot_type = "sar")
 ```
+### model5 for parameters 1995
+```{r}
+
+#str(res95$csar_analysis$model)
+
+# create objects for z, c and affinity coeffiecients
+
+aff_for_for<-res95$csar_analysis$model$affinity$Forest_Sp[1]
+aff_for_agr<-res95$csar_analysis$model$affinity$Forest_Sp[2]
+aff_for_shr<-res95$csar_analysis$model$affinity$Forest_Sp[3]
+
+aff_agr_agr<-res95$csar_analysis$model$affinity$Grassland_Sp[2]
+aff_agr_for<-res95$csar_analysis$model$affinity$Grassland_Sp[1]
+aff_agr_shr<-res95$csar_analysis$model$affinity$Grassland_Sp[3]
+
+aff_gen_shr<-res95$csar_analysis$model$affinity$generalists_Sp[3]
+aff_gen_agr<-res95$csar_analysis$model$affinity$generalists_Sp[2]
+aff_gen_for<-res95$csar_analysis$model$affinity$generalists_Sp[1]
+
+c_for<-res95$csar_analysis$model$c[1]
+c_agr<-res95$csar_analysis$model$c[2]
+c_gen<-res95$csar_analysis$model$c[3]
+
+z_for<-coef(res95$csar_analysis$model$fits$Forest_Sp)["z"]
+z_agr<-coef(res95$csar_analysis$model$fits$Grassland_Sp)["z"]
+z_gen<-coef(res95$csar_analysis$model$fits$generalists_Sp)["z"]
+
+#create function to compute models with parameters - 1995
+
+predict_csar95 <- function(Forest,
+                           Agriculture,
+                           Shrubland){
+
+  Forest_sp <-
+    c_for *
+    (aff_for_for*Forest +
+       aff_for_agr*Agriculture +
+      aff_for_shr*Shrubland)^z_for
+
+  Grassland_sp <-
+    c_agr *
+    (aff_agr_for*Forest +
+       aff_agr_agr*Agriculture +
+       aff_agr_shr*Shrubland)^z_agr
+
+  Generalists_sp <-
+    c_gen *
+    (aff_gen_for*Forest +
+       aff_gen_agr*Agriculture +
+       aff_gen_shr*Shrubland)^z_gen
+
+  data.frame(
+    Forest_sp,
+    Grassland_sp,
+    Generalists_sp
+  )
+}
+```
+
+```{r}
+meanF <- mean(res95$results_table$Forest)
+meanS <- mean(res95$results_table$Shrubland)
+
+curve_data <- data.frame(
+  Agri = seq(
+    0,
+    max(res95$results_table$Agriculture),
+    length.out = 200
+  )
+)
+
+pred <- predict_csar95(
+  Forest = meanF,
+  Shrubland = meanS,
+  Agriculture = curve_data$Agri
+)
+
+curve_data <- bind_cols(curve_data,pred)
+```
+
+```{r}
+
+F95 <- tail(res95$results_table$Forest, 1)
+A95 <- tail(res95$results_table$Agriculture, 1)
+S95 <- tail(res95$results_table$Shrubland, 1)
+
+F18 <- tail(res18$results_table$Forest, 1)
+A18 <- tail(res18$results_table$Agriculture, 1)
+S18 <- tail(res18$results_table$Shrubland, 1)
+
+```
+
+```{r}
+pred95 <- predict_csar95(
+  Forest = F95,
+  Agriculture = A95,
+  Shrubland = S95
+)
+
+pred18 <- predict_csar95(
+  Forest = F18,
+  Agriculture = A18,
+  Shrubland = S18
+)
+```
+
+```{r}
+obs18 <- colMeans(
+  res18$results_table[
+    ,
+    c("Forest_Sp",
+      "Grassland_Sp",
+      "generalists_Sp")
+  ]
+)
+```
+
+```{r}
+ggplot(curve_data,
+       aes(Agri, Grassland_sp)) +
+
+  geom_line(size = 1.2) +
+
+  geom_point(
+    aes(
+      x = S95,
+      y = pred95$Grassland_sp
+    ),
+    size = 4
+  ) +
+
+  geom_point(
+    aes(
+      x = S18,
+      y = pred18$Grassland_sp
+    ),
+    colour = "red",
+    size = 4
+  ) +
+
+  labs(
+    x = "Agricultural area",
+    y = "Predicted richness"
+  ) +
+
+  theme_bw()
+```
+```{r}
+str(res95$csar_analysis$model)
+pred18_tetrads <-
+  predict_csar95(
+    Forest = res18$results_table$Forest,
+    Agriculture = res18$results_table$Agriculture,
+    Shrubland = res18$results_table$Shrubland
+  )
+
+validation <- data.frame(
+  observed = res18$results_table$Grassland_Sp,
+  predicted = pred18_tetrads$Grassland_sp
+)
+
+cor(validation$observed,
+    validation$predicted)
+
+sqrt(
+ mean(
+   (validation$observed -
+      validation$predicted)^2
+ )
+)
+```
+
